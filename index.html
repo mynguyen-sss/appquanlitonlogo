@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>App Quản Lý Logo (Supabase)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Supabase Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Html5-QRCode Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- xlsx-js-style Library (Styled Excel Export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+<body>
+  <div id="overlay">
+    <div class="spinner"></div>
+    <p id="overlay-msg">Đang xử lý...</p>
+  </div>
+
+  <div class="app-container">
+    <header>
+      <h1>App Quản Lý Logo</h1>
+      <p id="header-user">Hệ thống kho Supabase</p>
+    </header>
+
+    <!-- Scanner View -->
+    <div id="scanner-view" class="view-container active">
+      <!-- UI Scanner -->
+      <div id="reader-wrapper">
+        <div id="scanner-placeholder">
+          <p style="font-weight: 700; color: var(--text-main); margin-bottom: 10px;">📷 QUÉT MÃ QR</p>
+          <button onclick="document.getElementById('qr-input-file').click()" class="btn-submit" style="margin-top:0; background: var(--nhap); padding: 12px; font-size: 14px;">
+            TẢI ẢNH HOẶC CHỤP QR
+          </button>
+          <input type="file" id="qr-input-file" accept="image/*" capture="camera" style="display:none;">
+        </div>
+        <div id="reader" style="display:none;"></div>
+      </div>
+
+      <!-- Manual Entry -->
+      <div class="manual-input-row">
+        <input type="text" id="manualInput" placeholder="Nhập mã Logo...">
+        <button onclick="handleManualSearch()">TÌM</button>
+      </div>
+
+      <!-- Info & Transaction Card -->
+      <div id="result-card" class="logo-card">
+        <div class="card-header">
+          <div class="badge badge-stock">Thông tin tồn kho</div>
+          <span class="logo-code" id="res-code">...</span>
+        </div>
+        <h2 class="brand-title" id="res-brand">BRAND NAME</h2>
+        <p class="desc" id="res-desc">Mô tả logo...</p>
+        
+        <div class="stock-info">
+          <div class="stock-item">
+            <p class="stock-label">Tồn hiện tại</p>
+            <p class="stock-val" id="res-stock">0</p>
+          </div>
+        </div>
+
+        <div class="action-form">
+          <div class="segmented-control" id="action-selector">
+            <button id="btn-nhap" class="active-nhap" onclick="setAction('NHẬP')">NHẬP (TRẢ)</button>
+            <button id="btn-xuat" onclick="setAction('XUẤT')">XUẤT (NHẬN)</button>
+          </div>
+
+          <div class="input-group">
+            <label>Số lượng</label>
+            <input type="number" id="inp-qty" placeholder="Nhập SL..." value="1">
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <div class="input-group" style="flex:1">
+              <label>Vị trí</label>
+              <input type="text" id="inp-loc" placeholder="Kệ A1">
+            </div>
+            <div class="input-group" style="flex:1">
+              <label>Người thực hiện</label>
+              <input type="text" id="inp-user" placeholder="Tên bạn">
+            </div>
+          </div>
+
+          <button class="btn-submit" onclick="submitTransaction()">XÁC NHẬN GIAO DỊCH</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboard-view" class="view-container">
+      <div class="activity-card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <h2 style="margin-bottom: 0;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--primary)"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.09-4-4L2 15.08l1.5 1.41z"/></svg>
+            Xu hướng tồn kho
+          </h2>
+          <div class="chart-filters" id="chart-range-selector">
+            <button class="filter-btn active" onclick="setChartRange(30)">30 Ngày</button>
+            <button class="filter-btn" onclick="setChartRange(90)">90 Ngày</button>
+            <button class="filter-btn" onclick="setChartRange('all')">Tất cả</button>
+          </div>
+        </div>
+        <div class="chart-container" style="position: relative; height:250px; width:100%;">
+          <canvas id="stockChart"></canvas>
+        </div>
+      </div>
+
+      <div class="activity-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2 style="margin-bottom: 0;">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--primary)"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+            Tổng hợp theo Brand
+          </h2>
+          <button class="btn-export" onclick="exportToExcel()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="margin-right: 6px;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            XUẤT EXCEL
+          </button>
+        </div>
+        <div id="brand-summary-list" class="brand-summary-list">
+          <!-- Items will be loaded here -->
+          <p style="text-align: center; color: var(--text-dim); font-size: 13px;">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('scanner')">
+      <svg viewBox="0 0 24 24"><path d="M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9l-4 5h12l-3-4-2.03 2.71L10 13zm7-11h-7v2h7v7h2V4c0-1.1-.9-2-2-2zm0 18h-7v2h7c1.1 0 2-.9 2-2v-7h-2v7zM4 13H2v7c0 1.1.9 2 2 2h7v-2H4v-7z"/></svg>
+      <span>QUÉT MÃ</span>
+    </button>
+    <button class="nav-item" onclick="switchTab('dashboard')">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      <span>BÁO CÁO</span>
+    </button>
+  </nav>
+
+  <script src="script.js"></script>
+
+  <script src="script.js"></script>
+</body>
+</html>
