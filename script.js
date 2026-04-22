@@ -63,8 +63,19 @@ function switchTab(tab) {
 
 // 3. Xử lý khi nhận được mã Logo
 async function handleMaReceived(ma) {
-    if (ma === currentMa) return;
-    currentMa = ma;
+    ma = ma.trim().toUpperCase(); // Chuẩn hóa in hoa
+    
+    // Tách mã theo quy tắc H + 9 ký tự
+    const finalCode = extractLogoId(ma);
+    
+    if (!finalCode) {
+        alert("❌ Mã không hợp lệ (Không tìm thấy ký tự H)!");
+        hideLoading();
+        return;
+    }
+
+    if (finalCode === currentMa) return;
+    currentMa = finalCode;
     
     showLoading("Đang tra cứu từ Supabase...");
     
@@ -73,14 +84,14 @@ async function handleMaReceived(ma) {
         const { data: logo, error: logoErr } = await _supabase
             .from('logos')
             .select('*')
-            .eq('id', ma)
+            .eq('id', finalCode)
             .single();
 
         // Lấy thông tin tồn kho từ bảng "inventory" (cột id, quanlity)
         const { data: stock, error: stockErr } = await _supabase
             .from('inventory')
             .select('*')
-            .eq('id', ma)
+            .eq('id', finalCode)
             .single();
 
         hideLoading();
@@ -88,7 +99,7 @@ async function handleMaReceived(ma) {
         if (logoErr && logoErr.code !== 'PGRST116') throw logoErr;
 
         displayLogoInfo({
-            maLogo: ma,
+            maLogo: finalCode,
             brand: logo ? logo.brand : (stock ? stock.brand : "MỚI (Chưa có trong danh mục)"),
             moTa: logo ? logo.decription : (stock ? stock.decription : "Chưa có mô tả"),
             tonKho: stock ? stock.quanlity : 0,
@@ -103,9 +114,15 @@ async function handleMaReceived(ma) {
 }
 
 function handleManualSearch() {
-    const ma = document.getElementById('manualInput').value.trim();
+    const ma = document.getElementById('manualInput').value.trim().toUpperCase();
     if (!ma) return;
     handleMaReceived(ma);
+}
+
+function extractLogoId(raw) {
+    const hIndex = raw.indexOf('H');
+    if (hIndex === -1) return null;
+    return raw.substring(hIndex, hIndex + 10);
 }
 
 function displayLogoInfo(data) {

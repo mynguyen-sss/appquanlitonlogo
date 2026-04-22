@@ -92,6 +92,7 @@ header p {
   padding: 10px;
   font-size: 14px;
   outline: none;
+  text-transform: uppercase; /* Luôn hiển thị in hoa khi gõ */
 }
 
 .manual-input-row button {
