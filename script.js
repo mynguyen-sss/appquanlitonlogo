@@ -313,8 +313,16 @@ async function loadDashboardData() {
 
         renderStockChart(filteredDates, datasets);
 
-        // 4. Hiển thị bảng tổng hợp theo Brand
-        renderBrandSummary(brandStocks, brandList);
+        // 4. Lấy dữ liệu tồn kho hiện tại để hiển thị chi tiết (drill-down)
+        const { data: invData, error: invErr } = await _supabase
+            .from('inventory')
+            .select('*')
+            .order('id', { ascending: true });
+            
+        if (invErr) throw invErr;
+
+        // 5. Hiển thị bảng tổng hợp theo Brand (với khả năng xem chi tiết)
+        renderBrandSummary(brandStocks, brandList, invData);
 
     } catch (err) {
         console.error("Dashboard error:", err);
@@ -396,22 +404,61 @@ function renderStockChart(labels, datasets) {
     });
 }
 
-function renderBrandSummary(brandStocks, brandList) {
+function renderBrandSummary(brandStocks, brandList, invData) {
     const listContainer = document.getElementById('brand-summary-list');
     if (!listContainer) return;
 
     // Sắp xếp brand theo số lượng giảm dần
     const sortedBrands = brandList.sort((a, b) => (brandStocks[b] || 0) - (brandStocks[a] || 0));
 
-    listContainer.innerHTML = sortedBrands.map((brand, idx) => `
-        <div class="summary-item">
-            <div class="summary-brand">
-                <div class="brand-dot" style="background-color: ${getBrandColor(idx)}; color: ${getBrandColor(idx)}"></div>
-                ${brand}
+    listContainer.innerHTML = sortedBrands.map((brand, idx) => {
+        const brandItems = invData.filter(item => item.brand === brand);
+        const color = getBrandColor(idx);
+        
+        return `
+            <div class="summary-wrapper">
+                <div class="summary-item" onclick="toggleBrandDetails(this)">
+                    <div class="summary-brand">
+                        <div class="brand-check">
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                        </div>
+                        <div class="brand-dot" style="background-color: ${color}; color: ${color}"></div>
+                        <span class="brand-name">${brand}</span>
+                    </div>
+                    <div class="summary-qty">${brandStocks[brand] || 0}</div>
+                </div>
+                <div class="brand-details">
+                    <div class="details-table">
+                        <div class="details-header">
+                            <span>MÃ LOGO</span>
+                            <span>SỐ LƯỢNG</span>
+                        </div>
+                        <div class="details-body">
+                            ${brandItems.map(item => `
+                                <div class="details-row">
+                                    <span class="item-id">${item.id}</span>
+                                    <span class="item-qty">${item.quanlity}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="summary-qty">${brandStocks[brand] || 0}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function toggleBrandDetails(element) {
+    // Tìm thẻ bọc ngoài cùng (summary-wrapper)
+    const wrapper = element.closest('.summary-wrapper');
+    
+    // Đóng các thẻ khác (nếu muốn dạng Accordion - tùy chọn)
+    // document.querySelectorAll('.summary-wrapper').forEach(w => {
+    //     if (w !== wrapper) w.classList.remove('expanded');
+    // });
+
+    // Toggle class expanded
+    wrapper.classList.toggle('expanded');
 }
 
 async function exportToExcel() {
